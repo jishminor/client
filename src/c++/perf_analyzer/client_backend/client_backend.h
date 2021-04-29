@@ -35,53 +35,20 @@
 #include <string>
 #include <vector>
 #include "ipc.h"
-
-#define RETURN_IF_CB_ERROR(S)    \
-  do {                           \
-    const Error& status__ = (S); \
-    if (!status__.IsOk()) {      \
-      return status__;           \
-    }                            \
-  } while (false)
-
+#include "../error.h"
 namespace perfanalyzer { namespace clientbackend {
-
-//==============================================================================
-/// Error status reported by backends
-///
-class Error {
- public:
-  /// Create an error with the specified message.
-  /// \param msg The message for the error
-  explicit Error(const std::string& msg = "");
-
-  /// Accessor for the message of this error.
-  /// \return The messsage for the error. Empty if no error.
-  const std::string& Message() const { return msg_; }
-
-  /// Does this error indicate OK status?
-  /// \return True if this error indicates "ok"/"success", false if
-  /// error indicates a failure.
-  bool IsOk() const { return msg_.empty(); }
-
-  /// Convenience "success" value. Can be used as Error::Success to
-  /// indicate no error.
-  static const Error Success;
-
- private:
-  friend std::ostream& operator<<(std::ostream&, const Error&);
-  std::string msg_;
-};
-
-//===================================================================================
-
 class ClientBackend;
 class InferInput;
 class InferRequestedOutput;
 class InferResult;
+class TritonLoader;
 
-enum BackendKind { TRITON = 0, TENSORFLOW_SERVING = 1, TORCHSERVE = 2 };
-enum ProtocolType { HTTP = 0, GRPC = 1, UNKNOWN = 2 };
+  TRITON = 0,
+  TENSORFLOW_SERVING = 1,
+  TORCHSERVE = 2,
+  TRITON_LOCAL = 3
+};
+enum ProtocolType { HTTP = 0, GRPC = 1, UNKNOWN = 2, LOCAL = 3 };
 enum GrpcCompressionAlgorithm {
   COMPRESS_NONE = 0,
   COMPRESS_DEFLATE = 1,
@@ -189,6 +156,12 @@ class ClientBackendFactory {
   /// \param backend Returns a new Client backend object.
   Error CreateClientBackend(std::unique_ptr<ClientBackend>* backend);
 
+  /// Add library path and model repository path to start the server and load
+  /// the model only used for the TRITON_LOCAL version which uses CAPI
+  Error AddAdditonalInfo(
+      const std::string& server_library_path,
+      const std::string& model_repository_path, const std::string& memory_type);
+ 
  private:
   ClientBackendFactory(
       const BackendKind kind, const std::string& url,
@@ -207,6 +180,10 @@ class ClientBackendFactory {
   const GrpcCompressionAlgorithm compression_algorithm_;
   std::shared_ptr<Headers> http_headers_;
   const bool verbose_;
+  std::string server_library_path_;
+  std::string model_repository_path_;
+  std::string memory_type_;
+  std::shared_ptr<TritonLoader> loader_;
 };
 
 //
@@ -219,6 +196,7 @@ class ClientBackend {
       const ProtocolType protocol,
       const GrpcCompressionAlgorithm compression_algorithm,
       std::shared_ptr<Headers> http_headers, const bool verbose,
+      const std::shared_ptr<TritonLoader>& loader,
       std::unique_ptr<ClientBackend>* client_backend);
 
   /// Destructor for the client backend object
