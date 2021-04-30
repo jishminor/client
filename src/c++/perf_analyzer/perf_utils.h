@@ -37,7 +37,6 @@
 #include <memory>
 #include <random>
 #include "client_backend/client_backend.h"
-#include "error.h"
 namespace pa = perfanalyzer;
 namespace cb = perfanalyzer::clientbackend;
 

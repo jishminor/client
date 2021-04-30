@@ -29,12 +29,26 @@
 #include "tensorflow_serving/tfserve_client_backend.h"
 #include "torchserve/torchserve_client_backend.h"
 #include "triton/triton_client_backend.h"
-
-#include "../c_api_helpers/triton_loader.h"
-#include "triton_local/triton_local_client_backend.h"
-#include "../error.h"
+#include "triton_c_api/triton_c_api_backend.h"
 
 namespace perfanalyzer { namespace clientbackend {
+//================================================
+
+const Error Error::Success("");
+
+Error::Error(const std::string& msg) : msg_(msg) {}
+
+std::ostream&
+operator<<(std::ostream& out, const Error& err)
+{
+  if (!err.msg_.empty()) {
+    out << err.msg_;
+  }
+  return out;
+}
+
+//================================================
+
 std::string
 BackendKindToString(const BackendKind kind)
 {
@@ -80,11 +94,14 @@ Error
 ClientBackendFactory::Create(
     const BackendKind kind, const std::string& url, const ProtocolType protocol,
     const GrpcCompressionAlgorithm compression_algorithm,
-    std::shared_ptr<Headers> http_headers, const bool verbose,
-    std::shared_ptr<ClientBackendFactory>* factory)
+    std::shared_ptr<Headers> http_headers,
+    const std::string& server_library_path,
+    const std::string& model_repository_path, const std::string& memory_type,
+    const bool verbose, std::shared_ptr<ClientBackendFactory>* factory)
 {
   factory->reset(new ClientBackendFactory(
-      kind, url, protocol, compression_algorithm, http_headers, verbose));
+      kind, url, protocol, compression_algorithm, http_headers,
+      server_library_path, model_repository_path, memory_type, verbose));
   return Error::Success;
 }
 
@@ -94,28 +111,11 @@ ClientBackendFactory::CreateClientBackend(
 {
   RETURN_IF_CB_ERROR(ClientBackend::Create(
       kind_, url_, protocol_, compression_algorithm_, http_headers_, verbose_,
-      loader_, client_backend));
+      server_library_path_, model_repository_path_, memory_type_,
+      client_backend));
   return Error::Success;
 }
 
-Error
-ClientBackendFactory::AddAdditonalInfo(
-    const std::string& server_library_path,
-    const std::string& model_repository_path, const std::string& memory_type)
-{
-  if (server_library_path.empty() || model_repository_path.empty() ||
-      memory_type.empty()) {
-    return Error("Incomplete additional info to start client backend");
-  } else {
-    server_library_path_ = server_library_path;
-    model_repository_path_ = model_repository_path;
-    memory_type_ = memory_type;
-    RETURN_IF_ERROR(TritonLoader::Create(
-        server_library_path, model_repository_path, memory_type, verbose_,
-        &loader_));
-    return Error::Success;
-  }
-}
 //
 // ClientBackend
 //
@@ -124,7 +124,8 @@ ClientBackend::Create(
     const BackendKind kind, const std::string& url, const ProtocolType protocol,
     const GrpcCompressionAlgorithm compression_algorithm,
     std::shared_ptr<Headers> http_headers, const bool verbose,
-    const std::shared_ptr<TritonLoader>& loader,
+    const std::string& server_library_path,
+    const std::string& model_repository_path, const std::string& memory_type,
     std::unique_ptr<ClientBackend>* client_backend)
 {
   std::unique_ptr<ClientBackend> local_backend;
@@ -142,7 +143,8 @@ ClientBackend::Create(
   } else if (kind == TRITON_LOCAL) {
     RETURN_IF_CB_ERROR(TritonLocalClientBackend::Create(
         url, protocol, BackendToGrpcType(compression_algorithm), http_headers,
-        verbose, loader, &local_backend));
+        server_library_path, model_repository_path, memory_type, verbose,
+        &local_backend));
   } else {
     return Error("unsupported client backend requested");
   }
