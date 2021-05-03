@@ -99,7 +99,8 @@ ClientBackendFactory::Create(
     const std::string& model_repository_path, const std::string& memory_type,
     const bool verbose, std::shared_ptr<ClientBackendFactory>* factory)
 {
-  std::cout << "create backend factory, " << server_library_path << " model repo " <<  model_repository_path << std::endl;
+  std::cout << "create backend factory, " << server_library_path
+            << " model repo " << model_repository_path << std::endl;
   factory->reset(new ClientBackendFactory(
       kind, url, protocol, compression_algorithm, http_headers,
       server_library_path, model_repository_path, memory_type, verbose));
@@ -131,7 +132,7 @@ ClientBackend::Create(
 {
   std::unique_ptr<ClientBackend> local_backend;
   if (kind == TRITON) {
-    std::cout << "creating tnormal triton backend "<< std::endl;
+    std::cout << "creating tnormal triton backend " << std::endl;
     RETURN_IF_CB_ERROR(TritonClientBackend::Create(
         url, protocol, BackendToGrpcType(compression_algorithm), http_headers,
         verbose, &local_backend));
@@ -143,7 +144,7 @@ ClientBackend::Create(
     RETURN_IF_CB_ERROR(TorchServeClientBackend::Create(
         url, protocol, http_headers, verbose, &local_backend));
   } else if (kind == TRITON_LOCAL) {
-    std::cout << "creating local triton "<< std::endl;
+    std::cout << "creating local triton " << std::endl;
     RETURN_IF_CB_ERROR(TritonLocalClientBackend::Create(
         url, protocol, BackendToGrpcType(compression_algorithm), http_headers,
         server_library_path, model_repository_path, memory_type, verbose,
